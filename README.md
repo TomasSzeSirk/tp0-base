@@ -109,7 +109,10 @@ Crear un script de bash `validar-echo-server.sh` que permita verificar el correc
 
 En caso de que la validación sea exitosa imprimir: `action: test_echo_server | result: success`, de lo contrario imprimir:`action: test_echo_server | result: fail`.
 
-El script deberá ubicarse en la raíz del proyecto. Netcat no debe ser instalado en la máquina _host_ y no se pueden exponer puertos del servidor para realizar la comunicación (hint: `docker network`). `
+El script deberá ubicarse en la raíz del proyecto. Netcat no debe ser instalado en la máquina _host_ y no se pueden exponer puertos del servidor para realizar la comunicación (hint: `docker network`). 
+
+#### Resolucion
+Creamos el archivo `validar-echo-server.sh` que permite verificar si el servidor funciona correctamente. Dentro del archivo corremos un container conteniendo netcat que se borrar al finalizar la prueba.
 
 
 ### Ejercicio N°4:
