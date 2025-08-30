@@ -28,6 +28,8 @@ echo "    environment:" >> $output_file
 echo "      - PYTHONUNBUFFERED=1" >> $output_file
 echo "    networks:" >> $output_file
 echo "      - testing_net" >> $output_file
+echo "    volumes:" >> $output_file
+echo "      - ./server/config.ini:/server/config.ini" >> $output_file
 
 for ((i=1; i<$number_of_clients+1; i++))
 do  
@@ -40,6 +42,8 @@ do
     echo "      - CLI-ID=$i" >> $output_file
     echo "    networks:" >> $output_file
     echo "      - testing_net" >> $output_file
+    echo "    volumes:" >> $output_file
+    echo "      - ./client/config.yaml:/config.yaml" >> $output_file
     echo "    depends_on:" >> $output_file
     echo "      - server" >> $output_file
 done
