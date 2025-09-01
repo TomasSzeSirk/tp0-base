@@ -10,6 +10,7 @@ class Server:
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
+        self._server_socket.settimeout(1)
         self._client_sockets = []
 
     def run(self):
@@ -23,9 +24,12 @@ class Server:
 
         signal.signal(signal.SIGTERM, self.handle_SIGTERM_signal)
         while True:
-            client_sock = self.__accept_new_connection()
-            self._client_sockets.append(client_sock)
-            self.__handle_client_connection(client_sock)
+            try:
+                client_sock = self.__accept_new_connection()
+                self._client_sockets.append(client_sock)
+                self.__handle_client_connection(client_sock)
+            except socket.timeout:
+                continue
 
     def __handle_client_connection(self, client_sock):
         """
