@@ -21,7 +21,7 @@ class Server:
         finishes, servers starts to accept new connections again
         """
 
-        signal.signal(signal.SIGTERM, self.__handle_SIGTERM_signal)
+        signal.signal(signal.SIGTERM, self.handle_SIGTERM_signal)
         while True:
             client_sock = self.__accept_new_connection()
             self._client_sockets.append(client_sock)
@@ -61,7 +61,7 @@ class Server:
         logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
         return c
 
-    def __handle_SIGTERM_signal(self, signum, frame):
+    def handle_SIGTERM_signal(self, signum, frame):
         for client_sock in self._client_sockets:
             client_sock.close()
             logging.info("action: close_client_connection | result: success")
