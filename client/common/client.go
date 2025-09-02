@@ -4,10 +4,11 @@ import (
 	"errors"
 	"io"
 	"net"
-	"time"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
+
 	"github.com/op/go-logging"
 )
 
@@ -55,13 +56,13 @@ func (c *Client) createClientSocket() error {
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
 	sigs := make(chan os.Signal, 1)
-    signal.Notify(sigs, syscall.SIGTERM)
+	signal.Notify(sigs, syscall.SIGTERM)
 
 	go func() {
-        <-sigs
-        c.HandleSIGTERM(sigs)
-        os.Exit(0)
-    }()
+		<-sigs
+		c.HandleSIGTERM(sigs)
+		os.Exit(0)
+	}()
 
 	// There is an autoincremental msgID to identify every message sent
 	// Messages if the message amount threshold has not been surpassed
@@ -92,7 +93,7 @@ func (c *Client) StartClientLoop() {
 
 func readBetFromEnv() *Bet {
 	return &Bet{
-		Agency:  os.Getenv("CLI_ID"),
+		Agency:    os.Getenv("CLI-ID"),
 		FirstName: os.Getenv("NOMBRE"),
 		LastName:  os.Getenv("APELLIDO"),
 		Document:  os.Getenv("DOCUMENTO"),
@@ -102,15 +103,15 @@ func readBetFromEnv() *Bet {
 }
 
 func (c *Client) HandleSIGTERM(sigs chan os.Signal) {
-    if c.conn != nil {
-        err := c.conn.Close()
-        if err == nil {
+	if c.conn != nil {
+		err := c.conn.Close()
+		if err == nil {
 			log.Infof("action: close_connection | result: success | client_id: %v", c.config.ID)
-        }
-    }
+		}
+	}
 
 	if sigs != nil {
 		close(sigs)
 		log.Infof("action: close_client | result: success | client_id: %v", c.config.ID)
-	}	
+	}
 }
