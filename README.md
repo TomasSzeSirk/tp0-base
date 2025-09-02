@@ -146,6 +146,8 @@ Se deberá implementar un módulo de comunicación entre el cliente y el servido
 * Correcta separación de responsabilidades entre modelo de dominio y capa de comunicación.
 * Correcto empleo de sockets, incluyendo manejo de errores y evitando los fenómenos conocidos como [_short read y short write_](https://cs61.seas.harvard.edu/site/2018/FileDescriptors/).
 
+#### Solucion
+Para esta seccion se decidio hacer un protocolo de comunicacion de tamaño variable para cada variable, creemos que era lo mas sencillo de implementar, aunque tambien podriamos haber armado un protocolo mixto, usando partes variables para nombre y apellido y el resto hacerlo de tamaño fijo. 
 
 ### Ejercicio N°6:
 Modificar los clientes para que envíen varias apuestas a la vez (modalidad conocida como procesamiento por _chunks_ o _batchs_). 
