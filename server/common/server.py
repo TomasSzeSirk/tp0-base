@@ -98,5 +98,5 @@ class Server:
 
                 field_data, buffer = buffer[:length], buffer[length:]
                 bet_values[bet_fields.pop(0)] = field_data.decode("utf-8")
-
+        print(bet_values)
         return Bet(**bet_values)
