@@ -3,6 +3,8 @@ import socket
 import logging
 import sys
 
+READ_BUFFER_SIZE = 1024
+U8_SIZE = 1
 
 class Server:
     def __init__(self, port, listen_backlog):
@@ -39,12 +41,11 @@ class Server:
         client socket will also be closed
         """
         try:
-            # TODO: Modify the receive to avoid short-reads
-            msg = client_sock.recv(1024).rstrip().decode('utf-8')
+            bet = self.read_bet_from_socket(client_sock)
             addr = client_sock.getpeername()
-            logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
-            # TODO: Modify the send to avoid short-writes
-            client_sock.send("{}\n".format(msg).encode('utf-8'))
+            logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {bet}')
+            store_bets([bet])
+            logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
         finally:
@@ -72,3 +73,28 @@ class Server:
         self._server_socket.close()
         logging.info("action: close_server | result: success")
         sys.exit(0)
+
+    def read_bet_from_socket(client_sock):
+        bet_fields = ["agency_id", "first_name", "last_name", "document", "birthdate", "number"]
+        bet_values = {}
+        buffer = b""
+
+        while bet_fields:
+            data = client_sock.recv(READ_BUFFER_SIZE)
+            if not data:
+                raise ConnectionError("El socket se cerró antes de recibir todos los datos")
+
+            buffer += data
+
+            while bet_fields and len(buffer) >= U8_SIZE:
+                length = int.from_bytes(buffer[:U8_SIZE], byteorder="big")
+                buffer = buffer[U8_SIZE:]
+
+                if len(buffer) < length:
+                    buffer = buffer
+                    break
+
+                field_data, buffer = buffer[:length], buffer[length:]
+                bet_values[bet_fields.pop(0)] = field_data.decode("utf-8")
+
+        return Bet(**bet_values)

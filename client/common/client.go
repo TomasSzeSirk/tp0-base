@@ -1,8 +1,8 @@
 package common
 
 import (
-	"bufio"
-	"fmt"
+	"errors"
+	"io"
 	"net"
 	"time"
 	"os"
@@ -65,38 +65,40 @@ func (c *Client) StartClientLoop() {
 
 	// There is an autoincremental msgID to identify every message sent
 	// Messages if the message amount threshold has not been surpassed
-	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
-		// Create the connection the server in every loop iteration. Send an
-		c.createClientSocket()
 
-		// TODO: Modify the send to avoid short-write
-		fmt.Fprintf(
-			c.conn,
-			"[CLIENT %v] Message N°%v\n",
-			c.config.ID,
-			msgID,
-		)
-		msg, err := bufio.NewReader(c.conn).ReadString('\n')
-		c.conn.Close()
+	if c.createClientSocket() != nil {
+		close(sigs)
+		os.Exit(1)
+	}
 
-		if err != nil {
-			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-				c.config.ID,
-				err,
-			)
-			return
+	bet := readBetFromEnv()
+	betBytes := bet.toBytes()
+	length := len(betBytes)
+
+	for length > 0 {
+		n, err := c.conn.Write(betBytes)
+		if errors.Is(err, io.ErrClosedPipe) {
+			log.Criticalf(`action: apuesta_enviada | result: fail | dni: %v | numero: %v | error: %v`, bet.Document, bet.Number, err)
+			close(sigs)
+			os.Exit(1)
 		}
 
-		log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-			c.config.ID,
-			msg,
-		)
-
-		// Wait a time between sending one message and the next one
-		time.Sleep(c.config.LoopPeriod)
-
+		betBytes = betBytes[n:]
+		length -= n
 	}
-	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+
+	log.Infof(`action: apuesta_enviada | result: success | dni: %v | numero: %v`, bet.Document, bet.Number)
+}
+
+func readBetFromEnv() *Bet {
+	return &Bet{
+		AgencyId:  os.Getenv("CLI_ID"),
+		FirstName: os.Getenv("NOMBRE"),
+		LastName:  os.Getenv("APELLIDO"),
+		Document:  os.Getenv("DOCUMENTO"),
+		Birthdate: os.Getenv("NACIMIENTO"),
+		Number:    os.Getenv("NUMERO"),
+	}
 }
 
 func (c *Client) HandleSIGTERM(sigs chan os.Signal) {
