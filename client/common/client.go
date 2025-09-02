@@ -92,7 +92,7 @@ func (c *Client) StartClientLoop() {
 
 func readBetFromEnv() *Bet {
 	return &Bet{
-		AgencyId:  os.Getenv("CLI_ID"),
+		Agency:  os.Getenv("CLI_ID"),
 		FirstName: os.Getenv("NOMBRE"),
 		LastName:  os.Getenv("APELLIDO"),
 		Document:  os.Getenv("DOCUMENTO"),

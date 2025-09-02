@@ -1,7 +1,7 @@
 package common
 
 type Bet struct {
-	AgencyId  string
+	Agency  string
 	FirstName string
 	LastName  string
 	Document  string
@@ -12,8 +12,8 @@ type Bet struct {
 func (b *Bet) toBytes() []byte {
 	var data []byte
 
-	data = append(data, uint8(len(b.AgencyId)))
-	data = append(data, []byte(b.AgencyId)...)
+	data = append(data, uint8(len(b.Agency)))
+	data = append(data, []byte(b.Agency)...)
 
 	data = append(data, uint8(len(b.FirstName)))
 	data = append(data, []byte(b.FirstName)...)

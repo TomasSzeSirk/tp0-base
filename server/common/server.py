@@ -3,6 +3,8 @@ import socket
 import logging
 import sys
 
+from .utils import Bet, store_bets
+
 READ_BUFFER_SIZE = 1024
 U8_SIZE = 1
 
@@ -74,8 +76,8 @@ class Server:
         logging.info("action: close_server | result: success")
         sys.exit(0)
 
-    def read_bet_from_socket(client_sock):
-        bet_fields = ["agency_id", "first_name", "last_name", "document", "birthdate", "number"]
+    def read_bet_from_socket(self, client_sock):
+        bet_fields = ["agency", "first_name", "last_name", "document", "birthdate", "number"]
         bet_values = {}
         buffer = b""
 
