@@ -162,6 +162,9 @@ La cantidad máxima de apuestas dentro de cada _batch_ debe ser configurable des
 
 Por su parte, el servidor deberá responder con éxito solamente si todas las apuestas del _batch_ fueron procesadas correctamente.
 
+#### Solucion
+Mantenemos el formato para enviar las apuestas pero al enviar batches tambien le enviamos el tamaño del batch para que lea unicamente ese batch, lo guarde a disco y siga con el siguiente. La respuesta del servidor es unicamente para poder continuar con el siguiente batch, no chequea si lo leyo bien o mal por falta de tiempo para implementarlo. Lo correcto seria que vuelva a enviar el dato que se equivoco, mandando el DNI.
+
 ### Ejercicio N°7:
 
 Modificar los clientes para que notifiquen al servidor al finalizar con el envío de todas las apuestas y así proceder con el sorteo.
