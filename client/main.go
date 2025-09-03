@@ -32,7 +32,7 @@ func InitConfig() (*viper.Viper, error) {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	// Add env variables supported
-	v.BindEnv("id")
+	v.BindEnv("id", "CLI-ID")
 	v.BindEnv("server", "address")
 	v.BindEnv("loop", "period")
 	v.BindEnv("loop", "amount")

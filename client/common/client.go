@@ -122,7 +122,6 @@ func (c *Client) sendFileInBatches() error {
 		}
 
 		if err != nil {
-			log.Infof("err: AAA")
 			return err
 		}
 
