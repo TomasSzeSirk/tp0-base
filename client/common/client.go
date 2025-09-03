@@ -132,11 +132,11 @@ func (c *Client) sendFileInBatches() error {
 
 		bet := &Bet{
 			Agency:    c.config.ID,
-			FirstName: record[1],
-			LastName:  record[2],
-			Document:  record[3],
-			Birthdate: record[4],
-			Number:    record[5],
+			FirstName: record[0],
+			LastName:  record[1],
+			Document:  record[2],
+			Birthdate: record[3],
+			Number:    record[4],
 		}
 
 		batch = append(batch, bet)
