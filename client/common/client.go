@@ -101,13 +101,15 @@ func (c *Client) sendFileInBatches() error {
 	if err != nil {
 		return err
 	}
-	log.Infof("AAA")
+	defer file.Close()
+
 	reader := csv.NewReader(bufio.NewReader(file))
 
 	if _, err := reader.Read(); err != nil {
+		log.Infof("AAA")
 		return err
 	}
-	log.Infof("BBB")
+
 	batch := make([]*Bet, 0, c.config.BatchMaxAmount)
 
 	for {
@@ -121,15 +123,14 @@ func (c *Client) sendFileInBatches() error {
 			}
 			break
 		}
-		log.Infof("CCC")
+
 		if err != nil {
 			return err
 		}
-		log.Infof("DDD")
+
 		if len(record) != len(betFields) {
 			return errors.New("NotSameNumberOfFields")
 		}
-		log.Infof("EEE")
 
 		bet := &Bet{
 			Agency:    record[0],
@@ -164,7 +165,7 @@ func (c *Client) sendBatch(batch []*Bet) error {
 
 		for length > 0 {
 			n, err := c.conn.Write(data)
-			if errors.Is(err, io.ErrClosedPipe) {
+			if err != nil {
 				return err
 			}
 
