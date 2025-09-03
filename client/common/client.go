@@ -72,11 +72,13 @@ func (c *Client) StartClientLoop() {
 
 	if c.createClientSocket() != nil {
 		close(sigs)
+		log.Infof("AAA")
 		os.Exit(1)
 	}
 
 	if c.sendFileInBatches() != nil {
 		close(sigs)
+		log.Infof("AAA")
 		os.Exit(1)
 	}
 }
