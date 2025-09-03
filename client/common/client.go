@@ -106,7 +106,6 @@ func (c *Client) sendFileInBatches() error {
 	reader := csv.NewReader(bufio.NewReader(file))
 
 	if _, err := reader.Read(); err != nil {
-		log.Infof("AAA")
 		return err
 	}
 
@@ -114,7 +113,7 @@ func (c *Client) sendFileInBatches() error {
 
 	for {
 		record, err := reader.Read()
-
+		log.Infof("AAA")
 		if err == io.EOF {
 			if len(batch) > 0 {
 				if err := c.sendBatch(batch); err != nil {
@@ -125,6 +124,7 @@ func (c *Client) sendFileInBatches() error {
 		}
 
 		if err != nil {
+			log.Infof("err: AAA")
 			return err
 		}
 
