@@ -152,7 +152,7 @@ func (c *Client) sendFileInBatches() error {
 	c.conn.Read(make([]byte, 1))
 
 	log.Infof("action: apuestas_enviadas | result: success")
-
+	file.Close()
 	return nil
 }
 
