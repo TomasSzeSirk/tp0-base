@@ -53,6 +53,7 @@ func (c *Client) createClientSocket() error {
 			c.config.ID,
 			err,
 		)
+		return err
 	}
 	c.conn = conn
 	return nil
@@ -107,7 +108,7 @@ func (c *Client) sendFileInBatches() error {
 		return err
 	}
 
-	batch := make([]*Bet, c.config.BatchMaxAmount)
+	batch := make([]*Bet, 0, c.config.BatchMaxAmount)
 
 	for {
 		record, err := reader.Read()
