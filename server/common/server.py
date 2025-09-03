@@ -58,18 +58,11 @@ class Server:
     def handle_bets(self, client_sock):
         try:
             bets = self.read_bets_from_socket(client_sock)
-            store_bets(bets)
-            client_sock.sendall(OK.to_bytes(1, byteorder='big'))
         except BrokenPipeError:
             logging.error("action: send_message | result: finished connection")
             return
         except Exception as e:
             logging.error("action: receive_message | result: fail | error: %s", e)
-            try:
-                client_sock.sendall(ERROR.to_bytes(1, byteorder='big'))
-            except BrokenPipeError:
-                logging.error("action: send_message | result: finished connection")
-                return
 
 
 
@@ -100,7 +93,7 @@ class Server:
         buffer = b""
         bets = []
 
-        client_sock.settimeout(1)
+        client_sock.settimeout(1)  
         timeout_count = 0
 
         try:
@@ -109,44 +102,54 @@ class Server:
                 buffer += data
                 timeout_count = 0
 
-                full_bet = True
-                while full_bet:
-                    bet_values = {}
+                while True:
+                    if len(buffer) < 2:
+                        break
+                    header = buffer[:2]
+                    batch_size = int.from_bytes(header, byteorder="big")
+                    buffer = buffer[2:]
+
+                    bets_batch = []
                     temp_buffer = buffer[:]
-                    full_bet = True
+                    for _ in range(batch_size):
+                        bet_values = {}
+                        for field in bet_fields:
+                            if len(temp_buffer) < U8_SIZE:
+                                break
 
-                    for field in bet_fields:
-                        if len(temp_buffer) < U8_SIZE:
-                            full_bet = False
+                            length = int.from_bytes(temp_buffer[:U8_SIZE], byteorder="big")
+                            temp_buffer = temp_buffer[U8_SIZE:]
+
+                            if len(temp_buffer) < length:
+                                break
+
+                            field_data, temp_buffer = temp_buffer[:length], temp_buffer[length:]
+                            bet_values[field] = field_data.decode("utf-8")
+
+                        if len(bet_values) != len(bet_fields):
+                            buffer = header + buffer
                             break
 
-                        length = int.from_bytes(temp_buffer[:U8_SIZE], byteorder="big")
-                        temp_buffer = temp_buffer[U8_SIZE:]
-
-                        if len(temp_buffer) < length:
-                            full_bet = False
-                            break
-
-                        field_data, temp_buffer = temp_buffer[:length], temp_buffer[length:]
-                        bet_values[field] = field_data.decode("utf-8")
-
-                    if full_bet:
                         try:
-                            bets.append(Bet(**bet_values))
+                            bet = Bet(**bet_values)
+                            bets_batch.append(bet)
                         except TypeError as e:
                             logging.info(
                                 "action: apuesta_recibida | result: fail | cantidad: %d",
-                                len(bets) + 1,
+                                batch_size,
                             )
-                            return e
+                            client_sock.sendall(ERROR.to_bytes(1, byteorder='big'))
 
-                        logging.info(
-                            "action: apuesta_recibida | result: success | cantidad: %d",
-                            len(bets),
-                        )
-                        buffer = temp_buffer
-                    else:
+                    if len(bets_batch) != batch_size:
                         break
+
+                    store_bets(bets_batch)
+                    client_sock.sendall(OK.to_bytes(1, byteorder='big'))
+                    logging.info(
+                        "action: apuesta_recibida | result: success | cantidad: %d",
+                        len(bets_batch),
+                    )
+                    buffer = temp_buffer
 
                 try:
                     data = client_sock.recv(READ_BUFFER_SIZE)
@@ -164,4 +167,5 @@ class Server:
             client_sock.settimeout(1)
 
         return bets
+
 

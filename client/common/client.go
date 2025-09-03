@@ -113,6 +113,7 @@ func (c *Client) sendFileInBatches() error {
 				if err := c.sendBatch(batch); err != nil {
 					return err
 				}
+				c.conn.Read(make([]byte, 1))
 			}
 			break
 		}
@@ -141,10 +142,9 @@ func (c *Client) sendFileInBatches() error {
 				return err
 			}
 			batch = batch[:0]
+			c.conn.Read(make([]byte, 1))
 		}
 	}
-
-	c.conn.Read(make([]byte, 1))
 
 	log.Infof("action: apuestas_enviadas | result: success")
 
@@ -152,6 +152,10 @@ func (c *Client) sendFileInBatches() error {
 }
 
 func (c *Client) sendBatch(batch []*Bet) error {
+
+	batch_size := c.BatchSizeToBytes(len(batch))
+	c.conn.Write(batch_size)
+
 	for _, bet := range batch {
 		data := bet.toBytes()
 		length := len(data)
@@ -169,4 +173,11 @@ func (c *Client) sendBatch(batch []*Bet) error {
 	}
 
 	return nil
+}
+
+func (c *Client) BatchSizeToBytes(n int) []byte {
+	return []byte{
+		byte((n >> 8) & 0xFF),
+		byte(n & 0xFF),
+	}
 }
