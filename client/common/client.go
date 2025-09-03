@@ -96,7 +96,6 @@ func (c *Client) HandleSIGTERM(sigs chan os.Signal) {
 }
 
 func (c *Client) sendFileInBatches() error {
-	betFields := []string{"agency", "first_name", "last_name", "document", "birthdate", "number"}
 	file, err := os.Open(FILE_PATH)
 	if err != nil {
 		return err
@@ -113,7 +112,6 @@ func (c *Client) sendFileInBatches() error {
 
 	for {
 		record, err := reader.Read()
-		log.Infof("AAA")
 		if err == io.EOF {
 			if len(batch) > 0 {
 				if err := c.sendBatch(batch); err != nil {
@@ -128,12 +126,12 @@ func (c *Client) sendFileInBatches() error {
 			return err
 		}
 
-		if len(record) != len(betFields) {
+		if len(record) != 5 {
 			return errors.New("NotSameNumberOfFields")
 		}
 
 		bet := &Bet{
-			Agency:    record[0],
+			Agency:    c.config.ID,
 			FirstName: record[1],
 			LastName:  record[2],
 			Document:  record[3],
