@@ -100,7 +100,6 @@ class Server:
         bets = []
 
         data = client_sock.recv(READ_BUFFER_SIZE)
-        print(data)
         while data:
             buffer += data
 

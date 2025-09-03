@@ -44,7 +44,7 @@ do
     echo "      - testing_net" >> $output_file
     echo "    volumes:" >> $output_file
     echo "      - ./client/config.yaml:/config.yaml" >> $output_file
-    echo "      - ./.data/agency-$i.csv:/agency-$i.csv" >> $output_file
+    echo "      - ./.data/agency-$i.csv:/agency.csv" >> $output_file
     echo "    depends_on:" >> $output_file
     echo "      - server" >> $output_file
 done
