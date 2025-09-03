@@ -1,6 +1,8 @@
 package common
 
 import (
+	"bufio"
+	"encoding/csv"
 	"errors"
 	"io"
 	"net"
@@ -12,14 +14,17 @@ import (
 	"github.com/op/go-logging"
 )
 
+const FILE_PATH = "./agency.csv"
+
 var log = logging.MustGetLogger("log")
 
 // ClientConfig Configuration used by the client
 type ClientConfig struct {
-	ID            string
-	ServerAddress string
-	LoopAmount    int
-	LoopPeriod    time.Duration
+	ID             string
+	ServerAddress  string
+	LoopAmount     int
+	LoopPeriod     time.Duration
+	BatchMaxAmount int
 }
 
 // Client Entity that encapsulates how
@@ -64,41 +69,14 @@ func (c *Client) StartClientLoop() {
 		os.Exit(0)
 	}()
 
-	// There is an autoincremental msgID to identify every message sent
-	// Messages if the message amount threshold has not been surpassed
-
 	if c.createClientSocket() != nil {
 		close(sigs)
 		os.Exit(1)
 	}
 
-	bet := readBetFromEnv()
-	betBytes := bet.toBytes()
-	length := len(betBytes)
-
-	for length > 0 {
-		n, err := c.conn.Write(betBytes)
-		if errors.Is(err, io.ErrClosedPipe) {
-			log.Criticalf(`action: apuesta_enviada | result: fail | dni: %v | numero: %v | error: %v`, bet.Document, bet.Number, err)
-			close(sigs)
-			os.Exit(1)
-		}
-
-		betBytes = betBytes[n:]
-		length -= n
-	}
-
-	log.Infof(`action: apuesta_enviada | result: success | dni: %v | numero: %v`, bet.Document, bet.Number)
-}
-
-func readBetFromEnv() *Bet {
-	return &Bet{
-		Agency:    os.Getenv("CLI-ID"),
-		FirstName: os.Getenv("NOMBRE"),
-		LastName:  os.Getenv("APELLIDO"),
-		Document:  os.Getenv("DOCUMENTO"),
-		Birthdate: os.Getenv("NACIMIENTO"),
-		Number:    os.Getenv("NUMERO"),
+	if c.sendFileInBatches() != nil {
+		close(sigs)
+		os.Exit(1)
 	}
 }
 
@@ -114,4 +92,84 @@ func (c *Client) HandleSIGTERM(sigs chan os.Signal) {
 		close(sigs)
 		log.Infof("action: close_client | result: success | client_id: %v", c.config.ID)
 	}
+}
+
+func (c *Client) sendFileInBatches() error {
+	betFields := []string{"agency", "first_name", "last_name", "document", "birthdate", "number"}
+	file, err := os.Open(FILE_PATH)
+	if err != nil {
+		return err
+	}
+
+	reader := csv.NewReader(bufio.NewReader(file))
+
+	if _, err := reader.Read(); err != nil {
+		return err
+	}
+
+	batch := make([]*Bet, c.config.BatchMaxAmount)
+
+	for {
+		record, err := reader.Read()
+
+		if err == io.EOF {
+			if len(batch) > 0 {
+				if err := c.sendBatch(batch); err != nil {
+					return err
+				}
+			}
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		if len(record) != len(betFields) {
+			return errors.New("NotSameNumberOfFields")
+		}
+
+		bet := &Bet{
+			Agency:    record[0],
+			FirstName: record[1],
+			LastName:  record[2],
+			Document:  record[3],
+			Birthdate: record[4],
+			Number:    record[5],
+		}
+
+		batch = append(batch, bet)
+
+		if len(batch) == c.config.BatchMaxAmount {
+			if err := c.sendBatch(batch); err != nil {
+				return err
+			}
+			batch = batch[:0]
+		}
+	}
+
+	c.conn.Read(make([]byte, 1))
+
+	log.Infof("action: apuestas_enviadas | result: success")
+
+	return nil
+}
+
+func (c *Client) sendBatch(batch []*Bet) error {
+	for _, bet := range batch {
+		data := bet.toBytes()
+		length := len(data)
+
+		for length > 0 {
+			n, err := c.conn.Write(data)
+			if errors.Is(err, io.ErrClosedPipe) {
+				return err
+			}
+
+			data = data[n:]
+			length -= n
+		}
+
+	}
+
+	return nil
 }

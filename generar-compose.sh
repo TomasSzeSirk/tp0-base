@@ -40,15 +40,11 @@ do
     echo "    entrypoint: /client" >> $output_file
     echo "    environment:" >> $output_file
     echo "      - CLI-ID=$i" >> $output_file
-    echo "      - NOMBRE=Juan" >> $output_file
-    echo "      - APELLIDO=Perez" >> $output_file
-    echo "      - DOCUMENTO=12345678" >> $output_file
-    echo "      - NUMERO=123" >> $output_file
-    echo "      - NACIMIENTO=1990-01-01" >> $output_file
     echo "    networks:" >> $output_file
     echo "      - testing_net" >> $output_file
     echo "    volumes:" >> $output_file
     echo "      - ./client/config.yaml:/config.yaml" >> $output_file
+    echo "      - ./.data/agency-$i.csv:/agency-$i.csv" >> $output_file
     echo "    depends_on:" >> $output_file
     echo "      - server" >> $output_file
 done

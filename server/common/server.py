@@ -7,6 +7,8 @@ from .utils import Bet, store_bets
 
 READ_BUFFER_SIZE = 1024
 U8_SIZE = 1
+OK = 1
+ERROR = 0
 
 class Server:
     def __init__(self, port, listen_backlog):
@@ -43,16 +45,32 @@ class Server:
         client socket will also be closed
         """
         try:
-            bet = self.read_bet_from_socket(client_sock)
+            self.handle_bets(client_sock)
             addr = client_sock.getpeername()
-            logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {bet}')
-            store_bets([bet])
-            logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
+            logging.info(f'action: receive_message | result: success | ip: {addr[0]}')
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
         finally:
             client_sock.close()
         self._client_sockets.remove(client_sock)
+
+    def handle_bets(self, client_sock):
+        try:
+            bets = self.read_bets_from_socket(client_sock)
+            store_bets(bets)
+            client_sock.sendall(OK.to_bytes(1, byteorder='big'))
+        except BrokenPipeError:
+            logging.error("action: send_message | result: finished connection")
+            return
+        except Exception as e:
+            logging.error("action: receive_message | result: fail | error: %s", e)
+            try:
+                client_sock.sendall(ERROR.to_bytes(1, byteorder='big'))
+            except BrokenPipeError:
+                logging.error("action: send_message | result: finished connection")
+                return
+
+
 
     def __accept_new_connection(self):
         """
@@ -76,27 +94,51 @@ class Server:
         logging.info("action: close_server | result: success")
         sys.exit(0)
 
-    def read_bet_from_socket(self, client_sock):
+    def read_bets_from_socket(self, client_sock):
         bet_fields = ["agency", "first_name", "last_name", "document", "birthdate", "number"]
-        bet_values = {}
         buffer = b""
+        bets = []
 
-        while bet_fields:
-            data = client_sock.recv(READ_BUFFER_SIZE)
-            if not data:
-                raise ConnectionError("El socket se cerró antes de recibir todos los datos")
-
+        data = client_sock.recv(READ_BUFFER_SIZE)
+        while data:
             buffer += data
 
-            while bet_fields and len(buffer) >= U8_SIZE:
-                length = int.from_bytes(buffer[:U8_SIZE], byteorder="big")
-                buffer = buffer[U8_SIZE:]
+            full_bet = True
+            while full_bet:
+                bet_values = {}
+                temp_buffer = buffer
+                full_bet = True
 
-                if len(buffer) < length:
-                    buffer = buffer
+                for field in bet_fields:
+                    if len(temp_buffer) < U8_SIZE:
+                        full_bet = False
+                        break
+
+                    length = int.from_bytes(temp_buffer[:U8_SIZE], byteorder="big")
+                    temp_buffer = temp_buffer[U8_SIZE:]
+
+                    if len(temp_buffer) < length:
+                        full_bet = False
+                        break
+
+                    field_data, temp_buffer = temp_buffer[:length], temp_buffer[length:]
+                    bet_values[field] = field_data.decode("utf-8")
+
+                if full_bet:
+                    try:
+                        bets.append(Bet(**bet_values))
+                    except TypeError as e:
+                        logging.info("action: apuesta_recibida | result: fail | cantidad: %d", len(bets)+1)
+                        return e
+            
+                    logging.info("action: apuesta_recibida | result: success | cantidad: %d", len(bets))
+                    buffer = temp_buffer
+                else:
                     break
 
-                field_data, buffer = buffer[:length], buffer[length:]
-                bet_values[bet_fields.pop(0)] = field_data.decode("utf-8")
+            data = client_sock.recv(READ_BUFFER_SIZE)
 
-        return Bet(**bet_values)
+        if buffer:
+            raise ConnectionError("El socket se cerró dejando apuestas incompletas")
+
+        return bets
