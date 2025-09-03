@@ -57,6 +57,7 @@ class Server:
     def handle_bets(self, client_sock):
         try:
             bets = self.read_bets_from_socket(client_sock)
+            print(bets)
             store_bets(bets)
             client_sock.sendall(OK.to_bytes(1, byteorder='big'))
         except BrokenPipeError:
