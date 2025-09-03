@@ -104,10 +104,6 @@ func (c *Client) sendFileInBatches() error {
 
 	reader := csv.NewReader(bufio.NewReader(file))
 
-	if _, err := reader.Read(); err != nil {
-		return err
-	}
-
 	batch := make([]*Bet, 0, c.config.BatchMaxAmount)
 
 	for {
@@ -151,7 +147,7 @@ func (c *Client) sendFileInBatches() error {
 	c.conn.Read(make([]byte, 1))
 
 	log.Infof("action: apuestas_enviadas | result: success")
-	file.Close()
+
 	return nil
 }
 

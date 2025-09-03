@@ -5,6 +5,7 @@ import sys
 
 from .utils import Bet, store_bets
 
+MAX_TIMEOUTS = 3
 READ_BUFFER_SIZE = 1024
 U8_SIZE = 1
 OK = 1
@@ -99,46 +100,68 @@ class Server:
         buffer = b""
         bets = []
 
-        data = client_sock.recv(READ_BUFFER_SIZE)
-        while data:
-            buffer += data
+        client_sock.settimeout(1)
+        timeout_count = 0
 
-            full_bet = True
-            while full_bet:
-                bet_values = {}
-                temp_buffer = buffer
-                full_bet = True
-
-                for field in bet_fields:
-                    if len(temp_buffer) < U8_SIZE:
-                        full_bet = False
-                        break
-
-                    length = int.from_bytes(temp_buffer[:U8_SIZE], byteorder="big")
-                    temp_buffer = temp_buffer[U8_SIZE:]
-
-                    if len(temp_buffer) < length:
-                        full_bet = False
-                        break
-
-                    field_data, temp_buffer = temp_buffer[:length], temp_buffer[length:]
-                    bet_values[field] = field_data.decode("utf-8")
-
-                if full_bet:
-                    try:
-                        bets.append(Bet(**bet_values))
-                    except TypeError as e:
-                        logging.info("action: apuesta_recibida | result: fail | cantidad: %d", len(bets)+1)
-                        return e
-            
-                    logging.info("action: apuesta_recibida | result: success | cantidad: %d", len(bets))
-                    buffer = temp_buffer
-                else:
-                    break
-
+        try:
             data = client_sock.recv(READ_BUFFER_SIZE)
+            while data:
+                buffer += data
+                timeout_count = 0
 
-        if buffer:
-            raise ConnectionError("El socket se cerró dejando apuestas incompletas")
+                full_bet = True
+                while full_bet:
+                    bet_values = {}
+                    temp_buffer = buffer[:]
+                    full_bet = True
+
+                    for field in bet_fields:
+                        if len(temp_buffer) < U8_SIZE:
+                            full_bet = False
+                            break
+
+                        length = int.from_bytes(temp_buffer[:U8_SIZE], byteorder="big")
+                        temp_buffer = temp_buffer[U8_SIZE:]
+
+                        if len(temp_buffer) < length:
+                            full_bet = False
+                            break
+
+                        field_data, temp_buffer = temp_buffer[:length], temp_buffer[length:]
+                        bet_values[field] = field_data.decode("utf-8")
+
+                    if full_bet:
+                        try:
+                            bets.append(Bet(**bet_values))
+                        except TypeError as e:
+                            logging.info(
+                                "action: apuesta_recibida | result: fail | cantidad: %d",
+                                len(bets) + 1,
+                            )
+                            return e
+
+                        logging.info(
+                            "action: apuesta_recibida | result: success | cantidad: %d",
+                            len(bets),
+                        )
+                        buffer = temp_buffer
+                    else:
+                        break
+
+                try:
+                    data = client_sock.recv(READ_BUFFER_SIZE)
+                except socket.timeout:
+                    timeout_count += 1
+                    if timeout_count >= MAX_TIMEOUTS:
+                        break
+                    data = b""
+                    continue
+
+            if buffer:
+                raise ConnectionError("El socket se cerró dejando apuestas incompletas")
+
+        finally:
+            client_sock.settimeout(1)
 
         return bets
+
