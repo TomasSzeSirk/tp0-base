@@ -192,30 +192,30 @@ func (c *Client) BatchSizeToBytes(n int) []byte {
 func (c *Client) receiveWinners() error {
 	err := c.sendWinnersRequest()
 	if err != nil {
+		log.Criticalf(`action: enviar_pedido | result: fail | error: %v`, err)
 		return err
 	}
+
+	log.Infof(`action: enviar_pedido | result: success`)
 
 	buffer := make([]byte, 1024)
 
-	// Leer los primeros 2 bytes = cantidad
-	n, err := c.conn.Read(buffer[:2])
+	_, err = c.conn.Read(buffer[:2])
+
 	if err != nil {
-		return err
-	}
-	if n < 2 {
+		log.Criticalf(`action: consulta_ganadores | result: fail | error: %v`, err)
 		return err
 	}
 
-	// Reconstruir el entero (BigEndian)
 	count := int(buffer[0])<<8 | int(buffer[1])
 	winners := make([]string, 0, count)
 
-	// Leer cada string de 4 bytes
 	for i := 0; i < count; i++ {
 		total := 0
 		for total < 4 {
 			n, err := c.conn.Read(buffer[total:4])
 			if err != nil {
+				log.Criticalf(`action: consulta_ganadores | result: fail | error: %v`, err)
 				return err
 			}
 			total += n
@@ -229,12 +229,9 @@ func (c *Client) receiveWinners() error {
 
 func (c *Client) sendWinnersRequest() error {
 	msg := []byte(c.config.ID)
-	for {
-		n, err := c.conn.Write(msg)
-		if err != nil {
-			return err
-		} else if n == 1 {
-			return nil
-		}
+	_, err := c.conn.Write(msg)
+	if err != nil {
+		return err
 	}
+	return nil
 }
