@@ -12,13 +12,14 @@ OK = 1
 ERROR = 0
 
 class Server:
-    def __init__(self, port, listen_backlog):
+    def __init__(self, port, listen_backlog, max_clients):
         # Initialize server socket
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
         self._server_socket.settimeout(1)
         self._client_sockets = []
+        self._max_clients = max_clients
 
     def run(self):
         """
@@ -31,12 +32,25 @@ class Server:
 
         signal.signal(signal.SIGTERM, self.handle_SIGTERM_signal)
         while True:
-            try:
-                client_sock = self.__accept_new_connection()
-                self._client_sockets.append(client_sock)
-                self.__handle_client_connection(client_sock)
-            except socket.timeout:
-                continue
+            max_connections = self._max_clients
+            remaining_messages_from_clients = {}
+            while max_connections > 0:
+                try:
+                    client_sock = self.__accept_new_connection()
+                    self._client_sockets.append(client_sock)
+                    remaining_messages_from_client = self.__handle_client_connection(client_sock)
+                    if remaining_messages_from_client:
+                        remaining_messages[client_sock.getpeername()[0]] = remaining_messages_from_client
+                    max_connections -= 1
+                except socket.timeout:
+                    continue
+            logging.info("action: sorteo | result: success")
+
+            winners_by_agency = self.winners()
+            for socket in self._client_sockets:
+                self.send_winners(socket, winners_by_agency, remaining_messages.get(socket.getpeername()[0], b''))
+
+            self._client_sockets.clear()
 
     def __handle_client_connection(self, client_sock):
         """
@@ -51,20 +65,60 @@ class Server:
             logging.info(f'action: receive_message | result: success | ip: {addr[0]}')
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
-        finally:
             client_sock.close()
-        self._client_sockets.remove(client_sock)
+            self._client_sockets.remove(client_sock)
+
 
     def handle_bets(self, client_sock):
         try:
-            bets = self.read_bets_from_socket(client_sock)
+            remaining_messages = self.read_bets_from_socket(client_sock)
+            return remaining_messages
         except BrokenPipeError:
             logging.error("action: send_message | result: finished connection")
-            return
+            self._client_sockets.remove(client_sock)
+            return 
         except Exception as e:
             logging.error("action: receive_message | result: fail | error: %s", e)
 
+    def winners(self):
+        bets = load_bets()
+        winners_by_agency = {}
+        for bet in bets:
+            if has_won(bet):
+                if bet.agency not in winners_by_agency:
+                    winners_by_agency[bet.agency] = []
+                winners_by_agency[bet.agency].append(bet.document)
+        return winners_by_agency
 
+    def send_winners(self, client_sock, winners_by_agency, remaining_buff):
+        try:
+            agency = None
+            if len(remaining_buff) == 0:
+                agency = self.wait_for_request(client_sock)
+            else:
+                agency = int.from_bytes(remaining_buff, 'big')
+                
+            winners = winners_by_agency.get(agency, []) 
+            bytes = []
+            for winner in winners:
+                bytes.append(int(winner).to_bytes(4, 'big'))
+            size = len(bytes).to_bytes(2, 'big')
+            msg = size + b''.join(bytes)
+
+            client_sock.sendall(msg)
+            logging.info("action: send_winners | result: success | cantidad: %d", len(winners))
+        except Exception as e:
+            logging.error("action: send_winners | result: fail | error: %s", e)
+
+    def wait_for_request(self, client_sock):
+        while True:
+            try:
+                data = client_sock.recv(U8_SIZE)
+                if data:
+                    logging.info("action: receive_message | result: success | ip: {addr[0]}")
+                    return int.from_bytes(data, 'big')
+            except BrokenPipeError as e:
+                raise e
 
     def __accept_new_connection(self):
         """
@@ -93,7 +147,7 @@ class Server:
         buffer = b""
         bets = []
 
-        client_sock.settimeout(1)  
+        client_sock.settimeout(3)  
         timeout_count = 0
 
         try:
@@ -101,9 +155,12 @@ class Server:
             while data:
                 buffer += data
                 timeout_count = 0
-
+                
+                if data[0:1] == b'E':
+                    buffer += data[1:]
+                    return buffer
                 while True:
-                    if len(buffer) < 2:
+                    if len(buffer) < 2*U8_SIZE:
                         break
                     header = buffer[:2]
                     batch_size = int.from_bytes(header, byteorder="big")
@@ -160,12 +217,8 @@ class Server:
                     data = b""
                     continue
 
-            if buffer:
-                raise ConnectionError("El socket se cerró dejando apuestas incompletas")
-
         finally:
             client_sock.settimeout(1)
 
-        return bets
 
 

@@ -15,6 +15,7 @@ import (
 )
 
 const FILE_PATH = "./agency.csv"
+const READ_BUFFER_SIZE = 1024
 
 var log = logging.MustGetLogger("log")
 
@@ -76,6 +77,11 @@ func (c *Client) StartClientLoop() {
 	}
 
 	if c.sendFileInBatches() != nil {
+		close(sigs)
+		os.Exit(1)
+	}
+
+	if c.receiveWinners() != nil {
 		close(sigs)
 		os.Exit(1)
 	}
@@ -147,6 +153,7 @@ func (c *Client) sendFileInBatches() error {
 	}
 
 	log.Infof("action: apuestas_enviadas | result: success")
+	c.conn.Write([]byte("E"))
 
 	return nil
 }
@@ -179,5 +186,56 @@ func (c *Client) BatchSizeToBytes(n int) []byte {
 	return []byte{
 		byte((n >> 8) & 0xFF),
 		byte(n & 0xFF),
+	}
+}
+
+func (c *Client) receiveWinners() error {
+	requestErr := c.sendWinnersRequest()
+	if requestErr != nil {
+		return requestErr
+	}
+
+	buffer := make([]byte, 1024)
+
+	// Leer los primeros 2 bytes = cantidad
+	n, err := c.conn.Read(buffer[:2])
+	if err != nil {
+		return err
+	}
+	if n < 2 {
+		return err
+	}
+
+	// Reconstruir el entero (BigEndian)
+	count := int(buffer[0])<<8 | int(buffer[1])
+	winners := make([]string, 0, count)
+
+	// Leer cada string de 4 bytes
+	for i := 0; i < count; i++ {
+		total := 0
+		for total < 4 {
+			n, err := c.conn.Read(buffer[total:4])
+			if err != nil {
+				return err
+			}
+			total += n
+		}
+		winners = append(winners, string(buffer[:4]))
+	}
+
+	log.Infof(`action: consulta_ganadores | result: success | cant_ganadores: %v`, len(winners))
+	return nil
+}
+
+func (c *Client) sendWinnersRequest() error {
+	msg := []byte(c.config.ID)
+
+	for {
+		n, err := c.conn.Write(msg)
+		if err != nil {
+			return err
+		} else if n == 1 {
+			return nil
+		}
 	}
 }
