@@ -188,6 +188,11 @@ En este ejercicio es importante considerar los mecanismos de sincronización a u
 
 Modificar el servidor para que permita aceptar conexiones y procesar mensajes en paralelo. En caso de que el alumno implemente el servidor en Python utilizando _multithreading_,  deberán tenerse en cuenta las [limitaciones propias del lenguaje](https://wiki.python.org/moin/GlobalInterpreterLock).
 
+#### Solucion
+Implementé el servidor con multithreading, creando un hilo por cada cliente para aceptar conexiones y procesar mensajes en paralelo. 
+Aunque Python tiene la limitación del GIL, esta elección es adecuada porque la carga es principalmente de E/S (sockets y escritura de archivo). Para evitar condiciones de carrera utilicé locks en recursos compartidos como bets.csv y el diccionario de agencias. 
+Además, procesé las apuestas en lotes para optimizar la eficiencia y añadí manejo de errores y cierre ordenado de conexiones para lograr un servidor robusto
+
 ## Condiciones de Entrega
 Se espera que los alumnos realicen un _fork_ del presente repositorio para el desarrollo de los ejercicios y que aprovechen el esqueleto provisto tanto (o tan poco) como consideren necesario.
 
