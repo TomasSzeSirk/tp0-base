@@ -93,8 +93,15 @@ python3 mi-generador.py $1 $2
 
 En el archivo de Docker Compose de salida se pueden definir volúmenes, variables de entorno y redes con libertad, pero recordar actualizar este script cuando se modifiquen tales definiciones en los sucesivos ejercicios.
 
+#### Resolucion
+Se creo un script de bash `generar-compose.sh`, se ejecuta de la siguiente manera:
+`./generar-compose.sh <output_file.yaml> <uintNumber_of_clients`
+
 ### Ejercicio N°2:
 Modificar el cliente y el servidor para lograr que realizar cambios en el archivo de configuración no requiera reconstruír las imágenes de Docker para que los mismos sean efectivos. La configuración a través del archivo correspondiente (`config.ini` y `config.yaml`, dependiendo de la aplicación) debe ser inyectada en el container y persistida por fuera de la imagen (hint: `docker volumes`).
+
+#### Resolucion
+Modificamos el archivo `generar-compose.sh` para que cree un volumen de docker para que si se modifican los archivos de configuracion, no requieran un nuevo build.
 
 
 ### Ejercicio N°3:
@@ -102,11 +109,17 @@ Crear un script de bash `validar-echo-server.sh` que permita verificar el correc
 
 En caso de que la validación sea exitosa imprimir: `action: test_echo_server | result: success`, de lo contrario imprimir:`action: test_echo_server | result: fail`.
 
-El script deberá ubicarse en la raíz del proyecto. Netcat no debe ser instalado en la máquina _host_ y no se pueden exponer puertos del servidor para realizar la comunicación (hint: `docker network`). `
+El script deberá ubicarse en la raíz del proyecto. Netcat no debe ser instalado en la máquina _host_ y no se pueden exponer puertos del servidor para realizar la comunicación (hint: `docker network`). 
+
+#### Resolucion
+Creamos el archivo `validar-echo-server.sh` que permite verificar si el servidor funciona correctamente. Dentro del archivo corremos un container conteniendo netcat que se borrar al finalizar la prueba.
 
 
 ### Ejercicio N°4:
 Modificar servidor y cliente para que ambos sistemas terminen de forma _graceful_ al recibir la signal SIGTERM. Terminar la aplicación de forma _graceful_ implica que todos los _file descriptors_ (entre los que se encuentran archivos, sockets, threads y procesos) deben cerrarse correctamente antes que el thread de la aplicación principal muera. Loguear mensajes en el cierre de cada recurso (hint: Verificar que hace el flag `-t` utilizado en el comando `docker compose down`).
+
+#### Resolucion
+Modificamos el cliente y el servidor para poder manejar la signal SIGTERM y que cierre el programa de forma graceful. Tambien se quito el flag -t del docker compose down del Makefile porque al terminar ese timeout daba otro signal.
 
 ## Parte 2: Repaso de Comunicaciones
 
@@ -133,6 +146,8 @@ Se deberá implementar un módulo de comunicación entre el cliente y el servido
 * Correcta separación de responsabilidades entre modelo de dominio y capa de comunicación.
 * Correcto empleo de sockets, incluyendo manejo de errores y evitando los fenómenos conocidos como [_short read y short write_](https://cs61.seas.harvard.edu/site/2018/FileDescriptors/).
 
+#### Solucion
+Para esta seccion se decidio hacer un protocolo de comunicacion de tamaño variable para cada variable, creemos que era lo mas sencillo de implementar, aunque tambien podriamos haber armado un protocolo mixto, usando partes variables para nombre y apellido y el resto hacerlo de tamaño fijo. 
 
 ### Ejercicio N°6:
 Modificar los clientes para que envíen varias apuestas a la vez (modalidad conocida como procesamiento por _chunks_ o _batchs_). 
@@ -147,6 +162,9 @@ La cantidad máxima de apuestas dentro de cada _batch_ debe ser configurable des
 
 Por su parte, el servidor deberá responder con éxito solamente si todas las apuestas del _batch_ fueron procesadas correctamente.
 
+#### Solucion
+Mantenemos el formato para enviar las apuestas pero al enviar batches tambien le enviamos el tamaño del batch para que lea unicamente ese batch, lo guarde a disco y siga con el siguiente. La respuesta del servidor es unicamente para poder continuar con el siguiente batch, no chequea si lo leyo bien o mal por falta de tiempo para implementarlo. Lo correcto seria que vuelva a enviar el dato que se equivoco, mandando el DNI.
+
 ### Ejercicio N°7:
 
 Modificar los clientes para que notifiquen al servidor al finalizar con el envío de todas las apuestas y así proceder con el sorteo.
@@ -160,12 +178,20 @@ Las funciones `load_bets(...)` y `has_won(...)` son provistas por la cátedra y 
 
 No es correcto realizar un broadcast de todos los ganadores hacia todas las agencias, se espera que se informen los DNIs ganadores que correspondan a cada una de ellas.
 
+#### Solucion
+Para que el servidor se de cuenta que termino de recibir apuestas, el server recibe el mensaje de finalizacion, compuesto primero de la letra E y el numero de agencia de donde proviene, asi poder saber a donde enviar los ganadores de esa agencia
+
 ## Parte 3: Repaso de Concurrencia
 En este ejercicio es importante considerar los mecanismos de sincronización a utilizar para el correcto funcionamiento de la persistencia.
 
 ### Ejercicio N°8:
 
 Modificar el servidor para que permita aceptar conexiones y procesar mensajes en paralelo. En caso de que el alumno implemente el servidor en Python utilizando _multithreading_,  deberán tenerse en cuenta las [limitaciones propias del lenguaje](https://wiki.python.org/moin/GlobalInterpreterLock).
+
+#### Solucion
+Implementé el servidor con multithreading, creando un hilo por cada cliente para aceptar conexiones y procesar mensajes en paralelo. 
+Aunque Python tiene la limitación del GIL, esta elección es adecuada porque la carga es principalmente de E/S (sockets y escritura de archivo). Para evitar condiciones de carrera utilicé locks en recursos compartidos como bets.csv y el diccionario de agencias. 
+Además, procesé las apuestas en lotes para optimizar la eficiencia y añadí manejo de errores y cierre ordenado de conexiones para lograr un servidor robusto
 
 ## Condiciones de Entrega
 Se espera que los alumnos realicen un _fork_ del presente repositorio para el desarrollo de los ejercicios y que aprovechen el esqueleto provisto tanto (o tan poco) como consideren necesario.
