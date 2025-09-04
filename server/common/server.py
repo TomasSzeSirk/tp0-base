@@ -2,7 +2,6 @@ import signal
 import socket
 import logging
 import sys
-import threading
 
 from .utils import Bet, store_bets, load_bets, has_won
 
@@ -22,8 +21,6 @@ class Server:
         self._server_socket.settimeout(1)
         self._client_sockets = []
         self._max_clients = max_clients
-
-        self._threads = []
         
 
     def run(self):
