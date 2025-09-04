@@ -153,7 +153,10 @@ func (c *Client) sendFileInBatches() error {
 	}
 
 	log.Infof("action: apuestas_enviadas | result: success")
-	c.conn.Write([]byte("E"))
+	var msg []byte
+	msg = append(msg, []byte("E")...)
+	msg = append(msg, []byte(c.config.ID)...)
+	c.conn.Write(msg)
 
 	return nil
 }
@@ -190,17 +193,9 @@ func (c *Client) BatchSizeToBytes(n int) []byte {
 }
 
 func (c *Client) receiveWinners() error {
-	err := c.sendWinnersRequest()
-	if err != nil {
-		log.Criticalf(`action: enviar_pedido | result: fail | error: %v`, err)
-		return err
-	}
-
-	log.Infof(`action: enviar_pedido | result: success`)
-
 	buffer := make([]byte, 1024)
 
-	_, err = c.conn.Read(buffer[:2])
+	_, err := c.conn.Read(buffer[:2])
 
 	if err != nil {
 		log.Criticalf(`action: consulta_ganadores | result: fail | error: %v`, err)
@@ -224,14 +219,5 @@ func (c *Client) receiveWinners() error {
 	}
 
 	log.Infof(`action: consulta_ganadores | result: success | cant_ganadores: %v`, len(winners))
-	return nil
-}
-
-func (c *Client) sendWinnersRequest() error {
-	msg := []byte(c.config.ID)
-	_, err := c.conn.Write(msg)
-	if err != nil {
-		return err
-	}
 	return nil
 }
