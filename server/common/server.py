@@ -24,6 +24,9 @@ class Server:
         self._max_clients = max_clients
 
         self._threads = []
+        self._agencies_by_ips = {}
+        self._agencies_lock = threading.Lock()
+        self._bets_lock = threading.Lock()
         
 
     def run(self):
@@ -44,18 +47,25 @@ class Server:
                 try:
                     client_sock = self.__accept_new_connection()
                     self._client_sockets.append(client_sock)
-                    agency = self.__handle_client_connection(client_sock)
-                    agencies_by_ips[client_sock.getpeername()[0]] = agency
+                    client_thread = threading.Thread(target=self.__handle_client_connection, args=(client_sock))
+                    client_thread.start()
+                    self._threads.append(client_thread)
                     max_connections -= 1
                 except socket.timeout:
                     continue
             
             self._server_socket.settimeout(None)
+            for client_thread in self._threads:
+                client_thread.join()
+            self._threads.clear()
+
             logging.info("action: sorteo | result: success")
+
 
             winners_by_agency = self.winners()
             for client_sock in self._client_sockets:
                 self.send_winners(client_sock, winners_by_agency, agencies_by_ips.get(client_sock.getpeername()[0]))
+                client_sock.close()
 
             self._client_sockets.clear()
             max_connections = self._max_clients
@@ -71,13 +81,13 @@ class Server:
             agency = self.handle_bets(client_sock)
             addr = client_sock.getpeername()
             logging.info(f'action: receive_message | result: success | ip: {addr[0]}')
-            return agency
+            with self._agencies_lock:
+                self._agencies_by_ips[client_sock.getpeername()[0]] = agency
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
-            client_sock.close()
             self._client_sockets.remove(client_sock)
-
-
+            client_sock.close()
+        
     def handle_bets(self, client_sock):
         try:
             agency = self.read_bets_from_socket(client_sock)
@@ -126,9 +136,13 @@ class Server:
         return c
 
     def handle_SIGTERM_signal(self, signum, frame):
+        for client_thread in self._threads:
+            client_thread.join()
+
         for client_sock in self._client_sockets:
+            ip = client_sock.getpeername()[0]
             client_sock.close()
-            logging.info("action: close_client_connection | result: success")
+            logging.info(f"action: close_client_connection | result: success | ip: {ip}")
         self._server_socket.close()
         logging.info("action: close_server | result: success")
         sys.exit(0)
@@ -192,7 +206,7 @@ class Server:
                     if len(bets_batch) != batch_size:
                         break
 
-                    store_bets(bets_batch)
+                    self.handle_bets(client_sock)
                     client_sock.sendall(OK.to_bytes(1, byteorder='big'))
                     logging.info(
                         "action: apuesta_recibida | result: success | cantidad: %d",
@@ -212,5 +226,6 @@ class Server:
         finally:
             client_sock.settimeout(None)
 
-
-
+    def write_batch(self,bets_batch):
+        with self._bets_lock:
+            store_bets(bets_batch)
