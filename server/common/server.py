@@ -3,7 +3,7 @@ import socket
 import logging
 import sys
 
-from .utils import Bet, store_bets
+from .utils import Bet, store_bets, load_bets, has_won
 
 MAX_TIMEOUTS = 3
 READ_BUFFER_SIZE = 1024
@@ -40,17 +40,21 @@ class Server:
                     self._client_sockets.append(client_sock)
                     remaining_messages_from_client = self.__handle_client_connection(client_sock)
                     if remaining_messages_from_client:
-                        remaining_messages[client_sock.getpeername()[0]] = remaining_messages_from_client
+                        remaining_messages_from_clients[client_sock.getpeername()[0]] = remaining_messages_from_client
                     max_connections -= 1
                 except socket.timeout:
                     continue
+                finally:
+                    self._server_socket.settimeout(None)
             logging.info("action: sorteo | result: success")
 
             winners_by_agency = self.winners()
+            logging.debug("%s", winners_by_agency)
             for socket in self._client_sockets:
-                self.send_winners(socket, winners_by_agency, remaining_messages.get(socket.getpeername()[0], b''))
+                self.send_winners(socket, winners_by_agency, remaining_messages_from_clients.get(socket.getpeername()[0], b''))
 
             self._client_sockets.clear()
+            max_connections = self._max_clients
 
     def __handle_client_connection(self, client_sock):
         """
@@ -97,14 +101,13 @@ class Server:
                 agency = self.wait_for_request(client_sock)
             else:
                 agency = int.from_bytes(remaining_buff, 'big')
-                
             winners = winners_by_agency.get(agency, []) 
             bytes = []
             for winner in winners:
                 bytes.append(int(winner).to_bytes(4, 'big'))
             size = len(bytes).to_bytes(2, 'big')
             msg = size + b''.join(bytes)
-
+            logging.debug("%s", msg)
             client_sock.sendall(msg)
             logging.info("action: send_winners | result: success | cantidad: %d", len(winners))
         except Exception as e:
@@ -115,7 +118,7 @@ class Server:
             try:
                 data = client_sock.recv(U8_SIZE)
                 if data:
-                    logging.info("action: receive_message | result: success | ip: {addr[0]}")
+                    logging.info("action: receive_request | result: success")
                     return int.from_bytes(data, 'big')
             except BrokenPipeError as e:
                 raise e
@@ -218,7 +221,7 @@ class Server:
                     continue
 
         finally:
-            client_sock.settimeout(1)
+            client_sock.settimeout(None)
 
 
 

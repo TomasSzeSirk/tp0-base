@@ -190,9 +190,9 @@ func (c *Client) BatchSizeToBytes(n int) []byte {
 }
 
 func (c *Client) receiveWinners() error {
-	requestErr := c.sendWinnersRequest()
-	if requestErr != nil {
-		return requestErr
+	err := c.sendWinnersRequest()
+	if err != nil {
+		return err
 	}
 
 	buffer := make([]byte, 1024)
@@ -229,7 +229,6 @@ func (c *Client) receiveWinners() error {
 
 func (c *Client) sendWinnersRequest() error {
 	msg := []byte(c.config.ID)
-
 	for {
 		n, err := c.conn.Write(msg)
 		if err != nil {
