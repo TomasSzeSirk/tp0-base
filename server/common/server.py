@@ -6,20 +6,22 @@ import sys
 from .utils import Bet, store_bets, load_bets, has_won
 
 MAX_TIMEOUTS = 3
+MAX_CLIENTS = 5
 READ_BUFFER_SIZE = 1024
 U8_SIZE = 1
 OK = 1
 ERROR = 0
 
+
 class Server:
-    def __init__(self, port, listen_backlog, max_clients):
+    def __init__(self, port, listen_backlog):
         # Initialize server socket
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
         self._server_socket.settimeout(1)
         self._client_sockets = []
-        self._max_clients = max_clients
+        self._max_clients = MAX_CLIENTS
 
     def run(self):
         """
