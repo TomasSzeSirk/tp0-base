@@ -53,6 +53,7 @@ class Server:
             winners_by_agency = self.winners()
             for client_sock in self._client_sockets:
                 self.send_winners(client_sock, winners_by_agency, agencies_by_ips.get(client_sock.getpeername()[0]))
+                client_sock.close()
 
             self._client_sockets.clear()
             max_connections = self._max_clients
