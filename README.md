@@ -178,6 +178,9 @@ Las funciones `load_bets(...)` y `has_won(...)` son provistas por la cátedra y 
 
 No es correcto realizar un broadcast de todos los ganadores hacia todas las agencias, se espera que se informen los DNIs ganadores que correspondan a cada una de ellas.
 
+#### Solucion
+Para que el servidor se de cuenta que termino de recibir apuestas, el server recibe el mensaje de finalizacion ("E") y despues envia el pedido de los ganadores enviando su ID.
+
 ## Parte 3: Repaso de Concurrencia
 En este ejercicio es importante considerar los mecanismos de sincronización a utilizar para el correcto funcionamiento de la persistencia.
 
