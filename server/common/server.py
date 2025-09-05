@@ -77,6 +77,10 @@ class Server:
         client socket will also be closed
         """
         try:
+            agency = self.handshake(client_sock)
+            if not agency:
+                client_sock.close()
+                return
             agency = self.handle_bets(client_sock)
             addr = client_sock.getpeername()
             logging.info(f'action: receive_message | result: success | ip: {addr[0]}')
@@ -86,6 +90,20 @@ class Server:
             logging.error(f"action: receive_message | result: fail | error: {e}")
             self._client_sockets.remove(client_sock)
             client_sock.close()
+
+    def handshake(self, client_sock):
+        try:
+            msg = self.recv_exact(client_sock, 6)
+            if not msg.startswith(b"HELLO:"):
+                client_sock.sendall(b"ERROR")
+                return None
+            agency_id = self.recv_exact(client_sock, 1).decode("utf-8")
+            client_sock.sendall(b"READY")
+            return agency_id
+        except Exception as e:
+            logging.error("action: handshake | result: fail | error: %s", e)
+            client_sock.sendall(b"ERROR")
+            return None
         
     def handle_bets(self, client_sock):
         try:
@@ -135,93 +153,81 @@ class Server:
         return c
 
     def handle_SIGTERM_signal(self, signum, frame):
-        for client_thread in self._threads:
-            client_thread.join()
-
         for client_sock in self._client_sockets:
             ip = client_sock.getpeername()[0]
             client_sock.close()
             logging.info(f"action: close_client_connection | result: success | ip: {ip}")
         self._server_socket.close()
+        
+        for client_thread in self._threads:
+            client_thread.join()
         logging.info("action: close_server | result: success")
         sys.exit(0)
-
+    
+    def recv_exact(self, sock, size):
+        buffer = b""
+        while len(buffer) < size:
+            chunk = sock.recv(size - len(buffer))
+            if not chunk:
+                raise EOFError("Conexión cerrada antes de recibir todos los datos")
+            buffer += chunk
+        return buffer
+        
     def read_bets_from_socket(self, client_sock):
         bet_fields = ["agency", "first_name", "last_name", "document", "birthdate", "number"]
-        buffer = b""
         bets = []
-
-        client_sock.settimeout(5)  
+        client_sock.settimeout(5)
         timeout_count = 0
 
-        data = client_sock.recv(READ_BUFFER_SIZE)
-        while data:
-            buffer += data
-            timeout_count = 0
-            
-            if data[0:1] == b'E':
-                buffer = data[1:]
-                agency = str(buffer, 'utf-8')
-                client_sock.settimeout(None)
-                return agency
-            while True:
-                if len(buffer) < 2*U8_SIZE:
-                    break
-                header = buffer[:2]
-                batch_size = int.from_bytes(header, byteorder="big")
-                buffer = buffer[2:]
-
-                bets_batch = []
-                temp_buffer = buffer[:]
-                for _ in range(batch_size):
-                    bet_values = {}
-                    for field in bet_fields:
-                        if len(temp_buffer) < U8_SIZE:
-                            break
-
-                        length = int.from_bytes(temp_buffer[:U8_SIZE], byteorder="big")
-                        temp_buffer = temp_buffer[U8_SIZE:]
-
-                        if len(temp_buffer) < length:
-                            break
-
-                        field_data, temp_buffer = temp_buffer[:length], temp_buffer[length:]
-                        bet_values[field] = field_data.decode("utf-8")
-
-                    if len(bet_values) != len(bet_fields):
-                        buffer = header + buffer
-                        break
-
-                    try:
-                        bet = Bet(**bet_values)
-                        bets_batch.append(bet)
-                    except TypeError as e:
-                        logging.info(
-                            "action: apuesta_recibida | result: fail | cantidad: %d",
-                            batch_size,
-                        )
-                        client_sock.sendall(ERROR.to_bytes(1, byteorder='big'))
-
-                if len(bets_batch) != batch_size:
-                    break
-
-                self.write_batch(bets_batch)
-                client_sock.sendall(OK.to_bytes(1, byteorder='big'))
-                logging.info(
-                    "action: apuesta_recibida | result: success | cantidad: %d",
-                    len(bets_batch),
-                )
-                buffer = temp_buffer
-
+        while True:
             try:
-                data = client_sock.recv(READ_BUFFER_SIZE)
+                first_byte = self.recv_exact(client_sock, 1)
             except socket.timeout:
                 timeout_count += 1
                 if timeout_count >= MAX_TIMEOUTS:
                     break
-                data = b""
                 continue
-         
+            except EOFError:
+                break
+
+            if first_byte == b'E':
+                agency = self.recv_exact(client_sock, 1)
+                client_sock.settimeout(None)
+                agency = str(agency, 'utf-8')
+                return agency
+
+            header_rest = self.recv_exact(client_sock, 1)
+            header = first_byte + header_rest
+            batch_size = int.from_bytes(header, byteorder="big")
+
+            bets_batch = []
+            for _ in range(batch_size):
+                bet_values = {}
+                for field in bet_fields:
+                    length = int.from_bytes(self.recv_exact(client_sock, 1), byteorder="big")
+                    field_data = self.recv_exact(client_sock, length)
+                    bet_values[field] = field_data.decode("utf-8")
+
+                try:
+                    bet = Bet(**bet_values)
+                    bets_batch.append(bet)
+                except TypeError:
+                    logging.info(
+                        "action: apuesta_recibida | result: fail | cantidad: %d",
+                        batch_size,
+                    )
+                    client_sock.sendall(ERROR.to_bytes(1, byteorder="big"))
+                    break
+
+            if len(bets_batch) != batch_size:
+                break
+
+            self.write_batch(bets_batch)
+            client_sock.sendall(OK.to_bytes(1, byteorder="big"))
+            logging.info(
+                "action: apuesta_recibida | result: success | cantidad: %d",
+                len(bets_batch),
+            )
 
     def write_batch(self, bets_batch):
         with self._bets_lock:

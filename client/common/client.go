@@ -76,6 +76,13 @@ func (c *Client) StartClientLoop() {
 		os.Exit(1)
 	}
 
+	defer c.conn.Close()
+
+	if c.handshake() != nil {
+		close(sigs)
+		os.Exit(1)
+	}
+
 	if c.sendFileInBatches() != nil {
 		close(sigs)
 		os.Exit(1)
@@ -99,6 +106,35 @@ func (c *Client) HandleSIGTERM(sigs chan os.Signal) {
 		close(sigs)
 		log.Infof("action: close_client | result: success | client_id: %v", c.config.ID)
 	}
+}
+
+func (c *Client) handshake() error {
+	msg := []byte("HELLO:" + c.config.ID)
+	_, err := c.conn.Write(msg)
+	if err != nil {
+		return err
+	}
+
+	c.conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	defer c.conn.SetReadDeadline(time.Time{})
+
+	buffer := make([]byte, 16)
+	n, err := c.conn.Read(buffer)
+	if err != nil {
+		if os.IsTimeout(err) {
+			log.Infof("action: handshake | result: timeout | exiting cleanly")
+			os.Exit(0)
+		}
+		return err
+	}
+
+	response := string(buffer[:n])
+	if response != "READY" {
+		return errors.New("server not ready: " + response)
+	}
+
+	log.Infof("action: handshake | result: success | server_response: %s", response)
+	return nil
 }
 
 func (c *Client) sendFileInBatches() error {
@@ -162,24 +198,26 @@ func (c *Client) sendFileInBatches() error {
 }
 
 func (c *Client) sendBatch(batch []*Bet) error {
-
-	batch_size := c.BatchSizeToBytes(len(batch))
-	c.conn.Write(batch_size)
+	batchSize := c.BatchSizeToBytes(len(batch))
+	remaining := batchSize
+	for len(remaining) > 0 {
+		n, err := c.conn.Write(remaining)
+		if err != nil {
+			return err
+		}
+		remaining = remaining[n:]
+	}
 
 	for _, bet := range batch {
 		data := bet.toBytes()
-		length := len(data)
-
-		for length > 0 {
-			n, err := c.conn.Write(data)
+		remaining := data
+		for len(remaining) > 0 {
+			n, err := c.conn.Write(remaining)
 			if err != nil {
 				return err
 			}
-
-			data = data[n:]
-			length -= n
+			remaining = remaining[n:]
 		}
-
 	}
 
 	return nil

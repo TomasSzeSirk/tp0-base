@@ -193,6 +193,12 @@ Implementé el servidor con multithreading, creando un hilo por cada cliente par
 Aunque Python tiene la limitación del GIL, esta elección es adecuada porque la carga es principalmente de E/S (sockets y escritura de archivo). Para evitar condiciones de carrera utilicé locks en recursos compartidos como bets.csv y el diccionario de agencias. 
 Además, procesé las apuestas en lotes para optimizar la eficiencia y añadí manejo de errores y cierre ordenado de conexiones para lograr un servidor robusto
 
+### Correcciones
+1. Agregamos los archivos `.dockerignore` para que no copie cada vez los archivos de configuracion
+2. Cerramos el primero los socket en vez de joinear los threads para evitar que se quede eternamente esperando o que llegue antes el SIGKILL
+3. Corregimos un par de partes del protocolo de comunicacion porque hacia short reads y short writes tanto en el cliente como en el servidor.
+4. Para ver si el servidor esta listo o no para pedir una consulta, agregamos un handshake previo. El protocolo de cuando el cliente se conecta, envía un mensaje inicial HELLO:<agency_id> al servidor para identificarse. El servidor valida la conexión y responde con READY si está en condiciones de recibir apuestas, o bien con ERROR si hubo algun problema. Solo cuando recibe READY, el cliente comienza a enviar las apuestas en lotes. Si el servidor no responde en cierto tiempo, tira un timeout y termina cerrando el socket y el programa.
+
 ## Condiciones de Entrega
 Se espera que los alumnos realicen un _fork_ del presente repositorio para el desarrollo de los ejercicios y que aprovechen el esqueleto provisto tanto (o tan poco) como consideren necesario.
 
